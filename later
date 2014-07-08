@@ -178,3 +178,26 @@ class LaterDate
   end
 
 end
+
+todo_file = ENV["TODO_FILE"]
+later_file = ENV["TODO_DIR"] + "/later.txt"
+
+todo_lines = []
+File.open(todo_file, 'r').each_line do |line|
+  todo_lines << line.strip()
+end
+
+later_lines = []
+File.open(later_file, 'r').each_line do |line|
+  later_lines << line.strip()
+end
+
+later_lines.each do |line|
+  (date_match, todo_item) = line.split(' ', 2)
+  laterdate = LaterDate.new(date_match)
+  if laterdate.valid? and laterdate.do_today?
+    todo_item = todo_item.gsub(/!!!/, Date.today.strftime("%F"))
+    # now we make sure the item isn't already in todo.txt
+    puts todo_item
+  end
+end
