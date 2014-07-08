@@ -1,0 +1,180 @@
+#!/usr/bin/env ruby
+
+require 'date'
+
+class LaterDate
+
+  def initialize(time_string)
+    @start_date = nil
+    @end_date = nil
+    @interval = nil
+    @period = nil
+    @selector = nil
+    @type = nil
+    @is_valid = false
+    @error = nil
+    parse(time_string)
+  end
+
+  def do_today?()
+    today = Date.today()
+
+    # if we just have a date it's easy
+    if @type == "date only"
+      return true if (@start_date === today)
+    else
+
+      # if we are before the start date we can skip
+      return false if @start_date and (today <=> @start_date) == -1
+
+      # if the end date has passed we can also skip
+      return false if @end_date and (today <=> @end_date) == 1
+
+      # now we deal with the interval
+      if @interval
+        case @type
+        when "day of month"                                                                                                         
+          diff = today.month - @start_date.month
+          diff += 12 if diff < 0
+          return false if (diff % @interval.to_i != 0)
+        when "day of week"                                                                                                          
+          diff = (today - @start_date)
+          diff = diff.to_i / 7
+          return false if (diff % @interval.to_i != 0)
+        when "month date"    
+          diff = today.year - @start_date.year
+          return false if (diff % @interval.to_i != 0)
+        end
+      end
+
+      case @type
+      when "day of month"                                                                                                         
+        return true if @selector.include?(today.strftime("%d"))
+      when "day of week"                                                                                                          
+        return true if @selector.include?(today.strftime("%a"))
+      when "month date"    
+        return true if @selector.include?(today.strftime("%b%d"))
+      end
+    end
+    # if we haven't returned yet, then there is nothing to do
+    return false
+  end
+
+  def valid?()
+    @is_valid
+  end
+
+  def showErrors
+    @error
+  end
+
+  private
+
+  def parse(s)
+    parts = s.split(';')
+
+    # first we deal with the date
+    if parts[0] =~ /^\d{4}-\d{2}-\d{2}/ or parts.length() == 2
+      (d1,d2) = parts[0].split('..')
+      if d1 =~ /^\d{4}-\d{2}-\d{2}$/
+        begin
+          @start_date = Date.parse(d1)
+        rescue
+          if d2
+            @error = "start date failed to parse"
+            return @is_valid = false
+          else
+            @error = "date failed to parse"
+            return @is_valid = false
+          end
+        end
+      else
+        if d2
+          @error = "invalid start date for range"
+          return @is_valid = false
+        else
+          @error = "invalid date"
+          return @is_valid = false
+        end
+      end
+      if d2 and d2 =~ /^\d{4}-\d{2}-\d{2}$/
+        begin
+          @end_date = Date.parse(d2) if d2
+        rescue
+          @error = "end date failed to parse"
+          return @is_valid = false
+        end
+      elsif d2
+        @error = "invalid end date for range"
+        return @is_valid = false
+      end
+      # another problem is start date after end date
+      if @end_date and (@start_date <=> @end_date) == 1
+        @error = "start date is after end date"
+        return @is_valid = false
+      end
+      # also a date range without selector makes no sense
+      if @start_date and @end_date and parts.length() < 2
+        @error = "date range without selector"
+        return @is_valid = false
+      end
+      # if we only have a valid start date we are good
+      if @start_date and parts.length() < 2
+        @type = "date only"
+        return @is_valid = true
+      end
+    end
+
+    # otherwise we have a selector
+    if @start_date
+      selector_string = parts[1]
+    else
+      selector_string = parts[0]
+    end
+
+    (sel, @interval) = selector_string.split('/')
+    @selector = sel.split(',')
+
+    # if we have a time interval with no date it's a problem
+    if @interval and not @start_date
+      @error = "interval requires a date to anchor on"
+      return @is_valid = false
+    end
+
+    # now we identify the selector and make sure it's consistent
+    case @selector[0]
+    when /^\d+$/
+      @type = "day of month"
+    when /^[a-zA-Z]{3}$/
+      @type = "day of week"
+    when /^[a-zA-Z]{3}\d{2}$/
+      @type = "month date"
+    else
+      @error = "could not identify the selector"
+      return @is_valid = false
+    end
+
+    if not validate_selector()
+      return @is_valid = false
+    end
+    return @is_valid = true
+  end
+
+  def validate_selector()
+    case @type
+    when "day of month"
+      @selector.each {|item| @error = "#{item} seems to differ from the first selector" if not item =~ /^\d+$/ }
+    when "day of week"
+      @selector.each {|item| @error = "#{item} seems to differ from the first selector" if not item =~ /^[a-zA-Z]{3}$/ }
+    when "month date"
+      @selector.each {|item| @error = "#{item} seems to differ from the first selector" if not item =~ /^[a-zA-Z]{3}\d{2}$/ }
+    end
+
+    if @error
+      return false
+    else
+      return true
+    end
+  end
+
+end
