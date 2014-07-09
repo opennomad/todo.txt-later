@@ -60,6 +60,15 @@ class LaterDate
     return false
   end
 
+  def past_end?()
+    today = Date.today()
+    if @end_date and (today <=> @end_date) >= 0 
+      true
+    else
+      false
+    end
+  end
+
   def valid?()
     @is_valid
   end
@@ -179,25 +188,51 @@ class LaterDate
 
 end
 
-todo_file = ENV["TODO_FILE"]
-later_file = ENV["TODO_DIR"] + "/later.txt"
+if ENV["TODO_FILE"] and ENV["TODO_DIR"]
+  todo_file = ENV["TODO_FILE"]
+  later_file = "#{ENV["TODO_DIR"]}/later.txt"
 
-todo_lines = []
-File.open(todo_file, 'r').each_line do |line|
-  todo_lines << line.strip()
-end
+  # start by reading the todo.txt file ...
+  todo_lines = []
+  File.open(todo_file, 'r').each_line do |line|
+    todo_lines << line.strip()
+  end
+  # ... and the later.txt file
+  later_lines = []
+  File.open(later_file, 'r').each_line do |line|
+    later_lines << line.strip()
+  end
 
-later_lines = []
-File.open(later_file, 'r').each_line do |line|
-  later_lines << line.strip()
-end
+  todo_modified = false
+  later_modified = false
 
-later_lines.each do |line|
-  (date_match, todo_item) = line.split(' ', 2)
-  laterdate = LaterDate.new(date_match)
-  if laterdate.valid? and laterdate.do_today?
-    todo_item = todo_item.gsub(/!!!/, Date.today.strftime("%F"))
-    # now we make sure the item isn't already in todo.txt
-    puts todo_item
+  # now we loop over the later.txt lines to see which things match today
+  later_lines.each do |line|
+    (date_match, todo_item) = line.split(' ', 2)
+    laterdate = LaterDate.new(date_match)
+    if laterdate.valid? and laterdate.do_today?
+      todo_item = todo_item.gsub(/!!!/, Date.today.strftime("%F"))
+      # now we make sure the item isn't already in todo.txt
+      if not todo_lines.include?(todo_item)
+        todo_lines << todo_item
+        todo_modified = true
+        puts "adding item to todo list"
+        puts "  #{todo_item}"
+      end
+    end
+    # now we check if we are past the end date of a range
+    if laterdate.past_end?
+      later_lines.delete(line)
+      later_modified = true
+      puts "removed item which was past end date"
+      puts "  #{line}"
+    end
+  end
+  # finally we store the modified files
+  if later_modified
+    File.open(later_file, 'w') { |file| later_lines.each {|l|  file.puts(l) } }
+  end
+  if todo_modified
+    File.open(todo_file, 'w') { |file| todo_lines.each {|l|  file.puts(l) } }
   end
 end
