@@ -12,15 +12,14 @@ class LaterDateTest < Minitest::Test
   @next_month = @today.next_month()
   @last_year = @today.prev_year()
 
+  def setup
+  end
+
   @range_past = @last_month.strftime("%F") + ".." + @yesterday.strftime("%F")
   @range_current = @last_month.strftime("%F") + ".." + @next_month.strftime("%F")
   @range_future = @tomorrow.strftime("%F") + ".." + @next_month.strftime("%F")
 
-  def setup
-  end
-  @@intervals = [ "daily", "weekly", "monthly", "yearly" ]
   @@ranges = { "past" => @range_past, "current" => @range_current, "future" => @range_future}
-  @@format = { "weekly" => "%a", "monthly" => "%d" }
 
   # testing for invalid dates
   invalids = {
@@ -126,4 +125,19 @@ class LaterDateTest < Minitest::Test
       assert_equal false, @laterdate.do_today?
     end
   end
+
+
+  # test end of range
+  end_ranges = [
+    [ "range_past", "#{@range_past};" + @today.strftime("%d"), true ],
+    [ "range_current", "#{@range_current};" + @today.strftime("%d"), false ],
+    [ "range_future", "#{@range_future};" + @today.strftime("%d"), false ]
+  ]
+  end_ranges.each do |range|
+    define_method("test_#{range[0]}") do
+      @laterdate = LaterDate.new(range[1])
+      assert_equal range[2], @laterdate.past_end?
+    end
+  end
+
 end
