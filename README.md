@@ -61,7 +61,7 @@ Note that you'll want to add the exclamation points after the priority to keep i
 * install *ruby* (I'm using version 1.9.3)
 * download *later* to *todo.actions.d/* in your todo.txt directory
 * create a `later.txt` (`todo.sh edit later` should do it)
-* run later: `todo.sh later` and/or add it to your crontab
+* run later: `todo.sh later` and/or add it to your crontab, but make sure to run it only **once** per day, since it will keep adding the todo items again if they have been completed.
 
 # Testing
 
