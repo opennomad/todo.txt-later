@@ -33,11 +33,11 @@ class LaterDate
       # now we deal with the interval
       if @interval
         case @type
-        when "day of month"                                                                                                         
+        when "day of month"
           diff = today.month - @start_date.month
           diff += 12 if diff < 0
           return false if (diff % @interval.to_i != 0)
-        when "day of week"                                                                                                          
+        when "day of week"
           diff = (today - @start_date)
           diff = diff.to_i / 7
           return false if (diff % @interval.to_i != 0)
@@ -48,9 +48,9 @@ class LaterDate
       end
 
       case @type
-      when "day of month"                                                                                                         
+      when "day of month"
         return true if @selector.include?(today.strftime("%d"))
-      when "day of week"                                                                                                          
+      when "day of week"
         return true if @selector.include?(today.strftime("%a"))
       when "month date"    
         return true if @selector.include?(today.strftime("%b%d"))
