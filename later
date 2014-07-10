@@ -73,7 +73,7 @@ class LaterDate
     @is_valid
   end
 
-  def showErrors
+  def show_errors
     @error
   end
 
@@ -188,6 +188,54 @@ class LaterDate
 
 end
 
+
+require 'optparse'
+
+options = {}
+OptionParser.new do |opts|
+  opts.banner = "Usage: todo.sh later [-c -v]"
+
+  opts.on("-h", "--help", "helpful information") do |h|
+    options[:help] = h
+    puts <<-HELP_TEXT
+    #{opts.banner}
+
+    This script should be called via todo.sh
+
+    Without option this tool will look at the later.txt file in your todo.txt directory
+    and find all items which match today and add them to the todo.txt file.
+
+    Options:
+
+    -h,--help will display this text
+    -c,--check will only print what would be done
+
+    Example content of later.txt:
+
+    Mon,Fri do something every Monday and Friday
+    1,10,18 do something on the 1st, 10th, and 18th of every month
+    Nov08 something to be done every November 8th
+    2014-06-06;Fri/2 do something every 2nd Friday starting June 6th, 2014
+    2014-01-01..2014-03-01;1 do something on the first of every month from January 1 through March 1 of 2014
+
+    later can also take an item out of todo.txt and place it in later.txt, providing
+    a sort of 'task snooze'. Simply specify the task number as you would to todo.sh and
+    either a date or +<number>, where <number> specifies the days to snooze the task:
+
+    todo.sh later 4 2015-02-01
+    todo.sh later 19 +7
+
+    For more information visit: https://github.com/opennomad/todo.txt-later
+    HELP_TEXT
+    exit 0
+  end
+
+  opts.on("-c", "--check", "check the items in later.txt") do |c|
+    options[:check] = c
+  end
+end.parse!
+
+# the following makes sure we have the right todo.txt environment
 if ENV["TODO_FILE"] and ENV["TODO_DIR"]
   todo_file = ENV["TODO_FILE"]
   later_file = "#{ENV["TODO_DIR"]}/later.txt"
@@ -206,33 +254,85 @@ if ENV["TODO_FILE"] and ENV["TODO_DIR"]
   todo_modified = false
   later_modified = false
 
-  # now we loop over the later.txt lines to see which things match today
-  later_lines.each do |line|
-    (date_match, todo_item) = line.split(' ', 2)
-    laterdate = LaterDate.new(date_match)
-    if laterdate.valid? and laterdate.do_today?
-      todo_item = todo_item.gsub(/!!!/, Date.today.strftime("%F"))
-      # now we make sure the item isn't already in todo.txt
-      if not todo_lines.include?(todo_item)
-        todo_lines << todo_item
-        todo_modified = true
-        puts "adding item to todo list"
-        puts "  #{todo_item}"
+  # if we have command line parameters we are looking at snoozing a task
+  # we ignore the first entry in ARGV, since it will be 'later' due to calling
+  # it via todo.sh
+  if ARGV[1]
+    puts "snooze task"
+    task_number = ARGV[1]
+    if not task_number =~ /^\d+/
+      puts "when postponing a task the first argument must be the task number not #{task_number}"
+      exit 1
+    else
+      # the task number should be a number
+      # and since the number in todo.txt are staring at one we need to reduce it 
+      task_number = task_number.to_i - 1
+      snooze_time = ARGV[2]
+      case snooze_time
+      when /^\+(\d)+$/
+        new_date = Date.today() + $1.to_i
+      when /^\d{4}-\d{2}-\d{2}$/
+        new_date = Date.parse(snooze_time)
+      else
+        puts "when postponing a task the second argument must be a date or +<number>"
+        exit 1
+      end
+      puts "#{new_date}"
+      puts "#{todo_lines[task_number]}"
+      if not todo_lines[task_number]
+        puts "it doesn't seem that #{task_number + 1} is a real task"
+        exit 1
+      end
+      # now we add the snooze to the later file
+      puts "moving todo #{task_number + 1} to later:"
+      puts "  #{new_date.strftime("%F") + " " + todo_lines[task_number]}"
+      later_lines << new_date.strftime("%F") + " " + todo_lines[task_number]
+      later_modified = true
+      todo_lines.delete_at(task_number)
+      todo_modified = true
+    end
+  else
+    # now we loop over the later.txt lines to see which things match today
+    puts "*** Running check only. No modifications will be done. ***" if options[:check]
+    later_lines.each do |line|
+      (date_match, todo_item) = line.split(' ', 2)
+      laterdate = LaterDate.new(date_match)
+      if not laterdate.valid?
+        puts "Error for: #{date_match} #{todo_item}"
+        puts laterdate.show_errors
+      else
+        if laterdate.do_today?
+          todo_item = todo_item.gsub(/!!!/, Date.today.strftime("%F"))
+          # now we make sure the item isn't already in todo.txt
+          if not todo_lines.include?(todo_item)
+            todo_lines << todo_item
+            todo_modified = true
+            puts "adding item to todo list"
+            puts "  #{todo_item}"
+          end
+        end
+        # now we check if we are past the end date of a range
+        if laterdate.past_end?
+          later_lines.delete(line)
+          later_modified = true
+          puts "removed item which was past end date"
+          puts "  #{line}"
+        end
       end
     end
-    # now we check if we are past the end date of a range
-    if laterdate.past_end?
-      later_lines.delete(line)
-      later_modified = true
-      puts "removed item which was past end date"
-      puts "  #{line}"
+  end
+
+
+
+  # finally we store the modified files unless we just checking
+  if not options[:check]
+    if later_modified
+      File.open(later_file, 'w') { |file| later_lines.each {|l|  file.puts(l) } }
+    end
+    if todo_modified
+      File.open(todo_file, 'w') { |file| todo_lines.each {|l|  file.puts(l) } }
     end
   end
-  # finally we store the modified files
-  if later_modified
-    File.open(later_file, 'w') { |file| later_lines.each {|l|  file.puts(l) } }
-  end
-  if todo_modified
-    File.open(todo_file, 'w') { |file| todo_lines.each {|l|  file.puts(l) } }
-  end
+else
+  puts "you should not run this directly, instead call it via todo.txt: todo.sh later ..."
 end
