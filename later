@@ -1,6 +1,7 @@
 #!/usr/bin/env ruby
 
 require 'date'
+STDOUT.sync = true
 
 class LaterDate
 
@@ -41,7 +42,7 @@ class LaterDate
           diff = (today - @start_date)
           diff = diff.to_i / 7
           return false if (diff % @interval.to_i != 0)
-        when "month date"    
+        when "month date"
           diff = today.year - @start_date.year
           return false if (diff % @interval.to_i != 0)
         end
@@ -49,10 +50,10 @@ class LaterDate
 
       case @type
       when "day of month"
-        return true if @selector.include?(today.strftime("%d"))
+        return true if @selector.include?(today.strftime("%-d"))
       when "day of week"
         return true if @selector.include?(today.strftime("%a"))
-      when "month date"    
+      when "month date"
         return true if @selector.include?(today.strftime("%b%d"))
       end
     end
@@ -62,7 +63,7 @@ class LaterDate
 
   def past_end?()
     today = Date.today()
-    if @end_date and (today <=> @end_date) >= 0 
+    if @end_date and (today <=> @end_date) >= 0
       true
     else
       false
@@ -265,7 +266,7 @@ if ENV["TODO_FILE"] and ENV["TODO_DIR"]
       exit 1
     else
       # the task number should be a number
-      # and since the number in todo.txt are staring at one we need to reduce it 
+      # and since the number in todo.txt are staring at one we need to reduce it
       task_number = task_number.to_i - 1
       snooze_time = ARGV[2]
       case snooze_time
@@ -296,6 +297,7 @@ if ENV["TODO_FILE"] and ENV["TODO_DIR"]
     puts "*** Running check only. No modifications will be done. ***" if options[:check]
     later_lines.each do |line|
       (date_match, todo_item) = line.split(' ', 2)
+      next if date_match.nil? || date_match.empty?
       laterdate = LaterDate.new(date_match)
       if not laterdate.valid?
         puts "Error for: #{date_match} #{todo_item}"

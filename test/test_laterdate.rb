@@ -51,6 +51,7 @@ class LaterDateTest < Minitest::Test
     "date_only" => "2014-08-01",
     "day_of_week" => "Mon,Thu,Fri",
     "day_of_month" => "1,14,20",
+    "single_day_of_month" => "2",
     "date_and_day_of_week" => "2013-08-04;Mon,Thu,Fri",
     "day_of_month" => "1,14,20"
   }
