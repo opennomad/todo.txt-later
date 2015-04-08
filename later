@@ -5,188 +5,187 @@ STDOUT.sync = true
 
 class LaterDate
 
-  def initialize(time_string)
-    @start_date = nil
-    @end_date = nil
-    @interval = nil
-    @period = nil
-    @selector = nil
-    @type = nil
-    @is_valid = false
-    @error = nil
-    parse(time_string)
-  end
+    def initialize(time_string)
+        @start_date = nil
+        @end_date = nil
+        @interval = nil
+        @period = nil
+        @selector = nil
+        @type = nil
+        @is_valid = false
+        @error = nil
+        parse(time_string)
+    end
 
-  def do_today?()
-    today = Date.today()
+    def do_today?()
+        today = Date.today()
 
-    # if we just have a date it's easy
-    if @type == "date only"
-      return true if (@start_date === today)
-    else
+        # if we just have a date it's easy
+        if @type == "date only"
+            return true if (@start_date === today)
+        else
 
-      # if we are before the start date we can skip
-      return false if @start_date and (today <=> @start_date) == -1
+            # if we are before the start date we can skip
+            return false if @start_date and (today <=> @start_date) == -1
 
-      # if the end date has passed we can also skip
-      return false if @end_date and (today <=> @end_date) == 1
+            # if the end date has passed we can also skip
+            return false if @end_date and (today <=> @end_date) == 1
 
-      # now we deal with the interval
-      if @interval
+            # now we deal with the interval
+            if @interval
+                case @type
+                when "day of month"
+                    diff = today.month - @start_date.month
+                    diff += 12 if diff < 0
+                    return false if (diff % @interval.to_i != 0)
+                when "day of week"
+                    diff = (today - @start_date)
+                    diff = diff.to_i / 7
+                    return false if (diff % @interval.to_i != 0)
+                when "month date"
+                    diff = today.year - @start_date.year
+                    return false if (diff % @interval.to_i != 0)
+                end
+            end
+
+            case @type
+            when "day of month"
+                return true if @selector.include?(today.strftime("%-d"))
+            when "day of week"
+                return true if @selector.include?(today.strftime("%a"))
+            when "month date"
+                return true if @selector.include?(today.strftime("%b%d"))
+            end
+        end
+        # if we haven't returned yet, then there is nothing to do
+        return false
+    end
+
+    def past_end?()
+        today = Date.today()
+        if @end_date and (today <=> @end_date) >= 0
+            true
+        else
+            false
+        end
+    end
+
+    def valid?()
+        @is_valid
+    end
+
+    def show_errors
+        @error
+    end
+
+    private
+
+    def parse(s)
+        parts = s.split(';')
+
+        # first we deal with the date
+        if parts[0] =~ /^\d{4}-\d{2}-\d{2}/ or parts.length() == 2
+            (d1,d2) = parts[0].split('..')
+            if d1 =~ /^\d{4}-\d{2}-\d{2}$/
+                begin
+                    @start_date = Date.parse(d1)
+                rescue
+                    if d2
+                        @error = "start date failed to parse"
+                        return @is_valid = false
+                    else
+                        @error = "date failed to parse"
+                        return @is_valid = false
+                    end
+                end
+            else
+                if d2
+                    @error = "invalid start date for range"
+                    return @is_valid = false
+                else
+                    @error = "invalid date"
+                    return @is_valid = false
+                end
+            end
+            if d2 and d2 =~ /^\d{4}-\d{2}-\d{2}$/
+                begin
+                    @end_date = Date.parse(d2) if d2
+                rescue
+                    @error = "end date failed to parse"
+                    return @is_valid = false
+                end
+            elsif d2
+                @error = "invalid end date for range"
+                return @is_valid = false
+            end
+            # another problem is start date after end date
+            if @end_date and (@start_date <=> @end_date) == 1
+                @error = "start date is after end date"
+                return @is_valid = false
+            end
+            # also a date range without selector makes no sense
+            if @start_date and @end_date and parts.length() < 2
+                @error = "date range without selector"
+                return @is_valid = false
+            end
+            # if we only have a valid start date we are good
+            if @start_date and parts.length() < 2
+                @type = "date only"
+                return @is_valid = true
+            end
+        end
+
+        # otherwise we have a selector
+        if @start_date
+            selector_string = parts[1]
+        else
+            selector_string = parts[0]
+        end
+
+        (sel, @interval) = selector_string.split('/')
+        @selector = sel.split(',')
+
+        # if we have a time interval with no date it's a problem
+        if @interval and not @start_date
+            @error = "interval requires a date to anchor on"
+            return @is_valid = false
+        end
+
+        # now we identify the selector and make sure it's consistent
+        case @selector[0]
+        when /^\d+$/
+            @type = "day of month"
+        when /^[a-zA-Z]{3}$/
+            @type = "day of week"
+        when /^[a-zA-Z]{3}\d{2}$/
+            @type = "month date"
+        else
+            @error = "could not identify the selector"
+            return @is_valid = false
+        end
+
+        if not validate_selector()
+            return @is_valid = false
+        end
+        return @is_valid = true
+    end
+
+    def validate_selector()
         case @type
         when "day of month"
-          diff = today.month - @start_date.month
-          diff += 12 if diff < 0
-          return false if (diff % @interval.to_i != 0)
+            @selector.each {|item| @error = "#{item} seems to differ from the first selector" if not item =~ /^\d+$/ }
         when "day of week"
-          diff = (today - @start_date)
-          diff = diff.to_i / 7
-          return false if (diff % @interval.to_i != 0)
+            @selector.each {|item| @error = "#{item} seems to differ from the first selector" if not item =~ /^[a-zA-Z]{3}$/ }
         when "month date"
-          diff = today.year - @start_date.year
-          return false if (diff % @interval.to_i != 0)
+            @selector.each {|item| @error = "#{item} seems to differ from the first selector" if not item =~ /^[a-zA-Z]{3}\d{2}$/ }
         end
-      end
 
-      case @type
-      when "day of month"
-        return true if @selector.include?(today.strftime("%-d"))
-      when "day of week"
-        return true if @selector.include?(today.strftime("%a"))
-      when "month date"
-        return true if @selector.include?(today.strftime("%b%d"))
-      end
-    end
-    # if we haven't returned yet, then there is nothing to do
-    return false
-  end
-
-  def past_end?()
-    today = Date.today()
-    if @end_date and (today <=> @end_date) >= 0
-      true
-    else
-      false
-    end
-  end
-
-  def valid?()
-    @is_valid
-  end
-
-  def show_errors
-    @error
-  end
-
-  private
-
-  def parse(s)
-    parts = s.split(';')
-
-    # first we deal with the date
-    if parts[0] =~ /^\d{4}-\d{2}-\d{2}/ or parts.length() == 2
-      (d1,d2) = parts[0].split('..')
-      if d1 =~ /^\d{4}-\d{2}-\d{2}$/
-        begin
-          @start_date = Date.parse(d1)
-        rescue
-          if d2
-            @error = "start date failed to parse"
-            return @is_valid = false
-          else
-            @error = "date failed to parse"
-            return @is_valid = false
-          end
-        end
-      else
-        if d2
-          @error = "invalid start date for range"
-          return @is_valid = false
+        if @error
+            return false
         else
-          @error = "invalid date"
-          return @is_valid = false
+            return true
         end
-      end
-      if d2 and d2 =~ /^\d{4}-\d{2}-\d{2}$/
-        begin
-          @end_date = Date.parse(d2) if d2
-        rescue
-          @error = "end date failed to parse"
-          return @is_valid = false
-        end
-      elsif d2
-        @error = "invalid end date for range"
-        return @is_valid = false
-      end
-      # another problem is start date after end date
-      if @end_date and (@start_date <=> @end_date) == 1
-        @error = "start date is after end date"
-        return @is_valid = false
-      end
-      # also a date range without selector makes no sense
-      if @start_date and @end_date and parts.length() < 2
-        @error = "date range without selector"
-        return @is_valid = false
-      end
-      # if we only have a valid start date we are good
-      if @start_date and parts.length() < 2
-        @type = "date only"
-        return @is_valid = true
-      end
     end
-
-    # otherwise we have a selector
-    if @start_date
-      selector_string = parts[1]
-    else
-      selector_string = parts[0]
-    end
-
-    (sel, @interval) = selector_string.split('/')
-    @selector = sel.split(',')
-
-    # if we have a time interval with no date it's a problem
-    if @interval and not @start_date
-      @error = "interval requires a date to anchor on"
-      return @is_valid = false
-    end
-
-    # now we identify the selector and make sure it's consistent
-    case @selector[0]
-    when /^\d+$/
-      @type = "day of month"
-    when /^[a-zA-Z]{3}$/
-      @type = "day of week"
-    when /^[a-zA-Z]{3}\d{2}$/
-      @type = "month date"
-    else
-      @error = "could not identify the selector"
-      return @is_valid = false
-    end
-
-    if not validate_selector()
-      return @is_valid = false
-    end
-    return @is_valid = true
-  end
-
-  def validate_selector()
-    case @type
-    when "day of month"
-      @selector.each {|item| @error = "#{item} seems to differ from the first selector" if not item =~ /^\d+$/ }
-    when "day of week"
-      @selector.each {|item| @error = "#{item} seems to differ from the first selector" if not item =~ /^[a-zA-Z]{3}$/ }
-    when "month date"
-      @selector.each {|item| @error = "#{item} seems to differ from the first selector" if not item =~ /^[a-zA-Z]{3}\d{2}$/ }
-    end
-
-    if @error
-      return false
-    else
-      return true
-    end
-  end
-
 end
 
 
@@ -236,105 +235,116 @@ OptionParser.new do |opts|
   end
 end.parse!
 
+if ENV["TODOTXT_DATE_ON_ADD"] == 0
+    add_date = false
+else
+    add_date = true
+end
+
 # the following makes sure we have the right todo.txt environment
 if ENV["TODO_FILE"] and ENV["TODO_DIR"]
-  todo_file = ENV["TODO_FILE"]
-  later_file = "#{ENV["TODO_DIR"]}/later.txt"
+    todo_file = ENV["TODO_FILE"]
+    later_file = "#{ENV["TODO_DIR"]}/later.txt"
 
-  # start by reading the todo.txt file ...
-  todo_lines = []
-  File.open(todo_file, 'r').each_line do |line|
-    todo_lines << line.strip()
-  end
-  # ... and the later.txt file
-  later_lines = []
-  File.open(later_file, 'r').each_line do |line|
-    later_lines << line.strip()
-  end
-
-  todo_modified = false
-  later_modified = false
-
-  # if we have command line parameters we are looking at snoozing a task
-  # we ignore the first entry in ARGV, since it will be 'later' due to calling
-  # it via todo.sh
-  if ARGV[1]
-    puts "snooze task"
-    task_number = ARGV[1]
-    if not task_number =~ /^\d+/
-      puts "when postponing a task the first argument must be the task number not #{task_number}"
-      exit 1
-    else
-      # the task number should be a number
-      # and since the number in todo.txt are staring at one we need to reduce it
-      task_number = task_number.to_i - 1
-      snooze_time = ARGV[2]
-      case snooze_time
-      when /^\+(\d)+$/
-        new_date = Date.today() + $1.to_i
-      when /^\d{4}-\d{2}-\d{2}$/
-        new_date = Date.parse(snooze_time)
-      else
-        puts "when postponing a task the second argument must be a date or +<number>"
-        exit 1
-      end
-      puts "#{new_date}"
-      puts "#{todo_lines[task_number]}"
-      if not todo_lines[task_number]
-        puts "it doesn't seem that #{task_number + 1} is a real task"
-        exit 1
-      end
-      # now we add the snooze to the later file
-      puts "moving todo #{task_number + 1} to later:"
-      puts "  #{new_date.strftime("%F") + " " + todo_lines[task_number]}"
-      later_lines << new_date.strftime("%F") + " " + todo_lines[task_number]
-      later_modified = true
-      todo_lines.delete_at(task_number)
-      todo_modified = true
+    # start by reading the todo.txt file ...
+    todo_lines = []
+    File.open(todo_file, 'r').each_line do |line|
+        todo_lines << line.strip()
     end
-  else
-    # now we loop over the later.txt lines to see which things match today
-    puts "*** Running check only. No modifications will be done. ***" if options[:check]
-    later_lines.each do |line|
-      (date_match, todo_item) = line.split(' ', 2)
-      next if date_match.nil? || date_match.empty?
-      laterdate = LaterDate.new(date_match)
-      if not laterdate.valid?
-        puts "Error for: #{date_match} #{todo_item}"
-        puts laterdate.show_errors
-      else
-        if laterdate.do_today?
-          todo_item = todo_item.gsub(/!!!/, Date.today.strftime("%F"))
-          # now we make sure the item isn't already in todo.txt
-          if not todo_lines.include?(todo_item)
-            todo_lines << todo_item
+    # ... and the later.txt file
+    later_lines = []
+    File.open(later_file, 'r').each_line do |line|
+        if not line.match(/^\s*#/)
+            later_lines << line.strip()
+        end
+    end
+
+    todo_modified = false
+    later_modified = false
+
+    # if we have command line parameters we are looking at snoozing a task
+    # we ignore the first entry in ARGV, since it will be 'later' due to calling
+    # it via todo.sh
+    if ARGV[1]
+        puts "snooze task"
+        task_number = ARGV[1]
+        if not task_number =~ /^\d+/
+            puts "when postponing a task the first argument must be the task number not #{task_number}"
+            exit 1
+        else
+            # the task number should be a number
+            # and since the number in todo.txt are staring at one we need to reduce it
+            task_number = task_number.to_i - 1
+            snooze_time = ARGV[2]
+            case snooze_time
+            when /^\+(\d)+$/
+                new_date = Date.today() + $1.to_i
+            when /^\d{4}-\d{2}-\d{2}$/
+                new_date = Date.parse(snooze_time)
+            else
+                puts "when postponing a task the second argument must be a date or +<number>"
+                exit 1
+            end
+            puts "#{new_date}"
+            puts "#{todo_lines[task_number]}"
+            if not todo_lines[task_number]
+                puts "it doesn't seem that #{task_number + 1} is a real task"
+                exit 1
+            end
+            # now we add the snooze to the later file
+            puts "moving todo #{task_number + 1} to later:"
+            puts "  #{new_date.strftime("%F") + " " + todo_lines[task_number]}"
+            later_lines << new_date.strftime("%F") + " " + todo_lines[task_number]
+            later_modified = true
+            todo_lines.delete_at(task_number)
             todo_modified = true
-            puts "adding item to todo list"
-            puts "  #{todo_item}"
-          end
         end
-        # now we check if we are past the end date of a range
-        if laterdate.past_end?
-          later_lines.delete(line)
-          later_modified = true
-          puts "removed item which was past end date"
-          puts "  #{line}"
+    else
+        # now we loop over the later.txt lines to see which things match today
+        puts "*** Running check only. No modifications will be done. ***" if options[:check]
+        later_lines.each do |line|
+            (date_match, todo_item) = line.split(' ', 2)
+            next if date_match.nil? || date_match.empty?
+            laterdate = LaterDate.new(date_match)
+            if not laterdate.valid?
+                puts "Error for: #{date_match} #{todo_item}"
+                puts laterdate.show_errors
+            else
+                if laterdate.do_today?
+                    if add_date
+                        date_string = Date.today.strftime("%F")
+                        todo_item = todo_item.gsub(/^(\(.\)) (.+)$/, "\\1 #{date_string} \\2")
+                    end
+                    # now we make sure the item isn't already in todo.txt
+                    if not todo_lines.include?(todo_item)
+                        todo_lines << todo_item
+                        todo_modified = true
+                        puts "adding item to todo list"
+                        puts "  #{todo_item}"
+                    end
+                end
+                # now we check if we are past the end date of a range
+                if laterdate.past_end?
+                    later_lines.delete(line)
+                    later_modified = true
+                    puts "removed item which was past end date"
+                    puts "  #{line}"
+                end
+            end
         end
-      end
     end
-  end
 
 
 
-  # finally we store the modified files unless we just checking
-  if not options[:check]
-    if later_modified
-      File.open(later_file, 'w') { |file| later_lines.each {|l|  file.puts(l) } }
+    # finally we store the modified files unless we just checking
+    if not options[:check]
+        if later_modified
+            File.open(later_file, 'w') { |file| later_lines.each {|l|  file.puts(l) } }
+        end
+        if todo_modified
+            File.open(todo_file, 'w') { |file| todo_lines.each {|l|  file.puts(l) } }
+        end
     end
-    if todo_modified
-      File.open(todo_file, 'w') { |file| todo_lines.each {|l|  file.puts(l) } }
-    end
-  end
 else
-  puts "you should not run this directly, instead call it via todo.txt: todo.sh later ..."
+    puts "you should not run this directly, instead call it via todo.txt: todo.sh later ..."
 end
