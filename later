@@ -188,6 +188,33 @@ class LaterDate
     end
 end
 
+class TodoItem
+    def initialize(todo_string, add_date)
+        parsed_todo = todo_string.match(/^(\(.\))?\s*(\d{4}-\d{2}-\d{2})?\s*(.*?)$/)
+        @priority = parsed_todo[1]
+        @date = parsed_todo[2]
+        @todo_item = parsed_todo[3]
+        @date_string = Date.today.strftime("%F")
+        @add_date = add_date
+    end
+
+    def build_todo()
+        if @add_date
+            if @date.nil? || @date.empty?
+                list = [@priority, @date_string, @todo_item]
+            else
+                list = [@priority, @date, @todo_item]
+            end
+        else
+            # here we still return the date if it was in the later file
+            list = [@priority, @date, @todo_item]
+        end
+        # clean up the empty values since they will introduce extra spaces
+        list.reject! { |c| c.nil? || c.empty? }
+        list.join(" ")
+    end
+end
+
 
 require 'optparse'
 
@@ -315,12 +342,14 @@ if ENV["TODO_FILE"] and ENV["TODO_DIR"]
                         date_string = Date.today.strftime("%F")
                         todo_item = todo_item.gsub(/^(\(.\)) (.+)$/, "\\1 #{date_string} \\2")
                     end
+                    ti = TodoItem.new(todo_item, add_date)
+                    todo_string = ti.build_todo()
                     # now we make sure the item isn't already in todo.txt
-                    if not todo_lines.include?(todo_item)
-                        todo_lines << todo_item
+                    if not todo_lines.include?(todo_string)
+                        todo_lines << todo_string
                         todo_modified = true
                         puts "adding item to todo list"
-                        puts "  #{todo_item}"
+                        puts "  #{todo_string}"
                     end
                 end
                 # now we check if we are past the end date of a range
@@ -336,7 +365,7 @@ if ENV["TODO_FILE"] and ENV["TODO_DIR"]
 
 
 
-    # finally we store the modified files unless we just checking
+    # finally we store the modified files unless we're just checking
     if not options[:check]
         if later_modified
             File.open(later_file, 'w') { |file| later_lines.each {|l|  file.puts(l) } }
