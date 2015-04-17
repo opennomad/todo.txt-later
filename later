@@ -338,10 +338,6 @@ if ENV["TODO_FILE"] and ENV["TODO_DIR"]
                 puts laterdate.show_errors
             else
                 if laterdate.do_today?
-                    if add_date
-                        date_string = Date.today.strftime("%F")
-                        todo_item = todo_item.gsub(/^(\(.\)) (.+)$/, "\\1 #{date_string} \\2")
-                    end
                     ti = TodoItem.new(todo_item, add_date)
                     todo_string = ti.build_todo()
                     # now we make sure the item isn't already in todo.txt
