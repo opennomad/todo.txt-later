@@ -65,6 +65,8 @@ class LaterDate
         today = Date.today()
         if @end_date and (today <=> @end_date) >= 0
             true
+        elsif @start_date and not @selector and (today <=> @start_date) >= 0
+            true
         else
             false
         end
