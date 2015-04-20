@@ -215,6 +215,22 @@ class TodoItem
         list.reject! { |c| c.nil? || c.empty? }
         list.join(" ")
     end
+
+    def build_done_todo()
+        if @add_date
+            if @date.nil? || @date.empty?
+                list = [@date_string, @todo_item]
+            else
+                list = [@date, @todo_item]
+            end
+        else
+            # here we still return the date if it was in the later file
+            list = [@date, @todo_item]
+        end
+        # clean up the empty values since they will introduce extra spaces
+        list.reject! { |c| c.nil? || c.empty? }
+        list.join(" ")
+    end
 end
 
 
@@ -273,12 +289,18 @@ end
 # the following makes sure we have the right todo.txt environment
 if ENV["TODO_FILE"] and ENV["TODO_DIR"]
     todo_file = ENV["TODO_FILE"]
+    done_file = "#{ENV["TODO_DIR"]}/done.txt"
     later_file = "#{ENV["TODO_DIR"]}/later.txt"
 
     # start by reading the todo.txt file ...
     todo_lines = []
     File.open(todo_file, 'r').each_line do |line|
         todo_lines << line.strip()
+    end
+    # ... and the done.txt file ...
+    done_lines = []
+    File.open(done_file, 'r').each_line do |line|
+        done_lines << line.strip()
     end
     # ... and the later.txt file
     later_lines = []
@@ -342,8 +364,11 @@ if ENV["TODO_FILE"] and ENV["TODO_DIR"]
                 if laterdate.do_today?
                     ti = TodoItem.new(todo_item, add_date)
                     todo_string = ti.build_todo()
+                    todo_done = ti.build_done_todo()
                     # now we make sure the item isn't already in todo.txt
-                    if not todo_lines.include?(todo_string)
+                    dones = []
+                    dones = done_lines.grep(Regexp.new(Regexp.escape todo_done))
+                    if not todo_lines.include?(todo_string) and dones.empty?
                         todo_lines << todo_string
                         todo_modified = true
                         puts "adding item to todo list"
@@ -352,10 +377,10 @@ if ENV["TODO_FILE"] and ENV["TODO_DIR"]
                 end
                 # now we check if we are past the end date of a range
                 if laterdate.past_end?
-                    later_lines.delete(line)
+                    rem = later_lines.delete(line)
                     later_modified = true
                     puts "removed item which was past end date"
-                    puts "  #{line}"
+                    puts "  #{rem}"
                 end
             end
         end
