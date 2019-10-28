@@ -200,6 +200,14 @@ class TodoItem
         @add_date = add_date
     end
 
+    def get_todo_item()
+        @todo_item
+    end
+
+    def get_todo_date()
+        @date
+    end
+
     def build_todo()
         if @add_date
             if @date.nil? || @date.empty?
@@ -210,6 +218,25 @@ class TodoItem
         else
             # here we still return the date if it was in the later file
             list = [@priority, @date, @todo_item]
+        end
+        # clean up the empty values since they will introduce extra spaces
+        list.reject! { |c| c.nil? || c.empty? }
+        list.join(" ")
+    end
+
+    def increment_priority()
+
+        new_priority = "(#{@priority.scan(/\((.)\)/).last.first.tr('A-Z','AA-Z')})"
+
+        if @add_date
+            if @date.nil? || @date.empty?
+                list = [new_priority, @date_string, @todo_item]
+            else
+                list = [new_priority, @date, @todo_item]
+            end
+        else
+            # here we still return the date if it was in the later file
+            list = [new_priority, @date, @todo_item]
         end
         # clean up the empty values since they will introduce extra spaces
         list.reject! { |c| c.nil? || c.empty? }
@@ -363,16 +390,33 @@ if ENV["TODO_FILE"] and ENV["TODO_DIR"]
             else
                 if laterdate.do_today?
                     ti = TodoItem.new(todo_item, add_date)
+                    existing_different_date = false
                     todo_string = ti.build_todo()
                     todo_done = ti.build_done_todo()
                     # now we make sure the item isn't already in todo.txt
                     dones = []
                     dones = done_lines.grep(Regexp.new(Regexp.escape todo_done))
                     if not todo_lines.include?(todo_string) and dones.empty?
-                        todo_lines << todo_string
-                        todo_modified = true
-                        puts "adding item to todo list"
-                        puts "  #{todo_string}"
+                        todo_lines.each do |item|
+                            todo_item = TodoItem.new(item, add_date)
+                            if todo_item.get_todo_item == ti.get_todo_item
+                                existing_different_date = todo_item
+                            end
+                        end
+
+                        # if an otherwise-identical task is present in todo.txt with a different date, increment its priority instead
+                        if existing_different_date
+                            todo_lines << existing_different_date.increment_priority
+                            todo_lines.delete(existing_different_date.build_todo)
+                            todo_modified = true
+                            puts "incrementing item priority"
+                            puts "  #{existing_different_date.increment_priority}"
+                        else
+                            todo_lines << todo_string
+                            todo_modified = true
+                            puts "adding item to todo list"
+                            puts "  #{todo_string}"
+                        end
                     end
                 end
                 # now we check if we are past the end date of a range
